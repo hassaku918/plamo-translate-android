@@ -1,6 +1,6 @@
 package com.hassaku.plamotranslate.di
 
-import com.hassaku.plamotranslate.data.inference.MockTranslationEngine
+import com.hassaku.plamotranslate.data.inference.PlamoLlamaEngine
 import com.hassaku.plamotranslate.data.inference.TranslationEngine
 import dagger.Binds
 import dagger.Module
@@ -15,6 +15,6 @@ abstract class InferenceModule {
     @Binds
     @Singleton
     abstract fun bindTranslationEngine(
-        impl: MockTranslationEngine
+        impl: PlamoLlamaEngine
     ): TranslationEngine
 }

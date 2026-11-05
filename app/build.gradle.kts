@@ -14,22 +14,16 @@ android {
         applicationId = "com.hassaku.plamotranslate"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
+        vectorDrawables { useSupportLibrary = true }
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
-
-    // Native build is optional until llama.cpp is fully integrated.
-    // Enable locally when NDK/CMake are installed:
-    // externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
 
     buildTypes {
         release {
@@ -45,20 +39,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
+    kotlinOptions { jvmTarget = "17" }
     buildFeatures {
         compose = true
         buildConfig = true
     }
-
     packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        jniLibs { useLegacyPackaging = true }
     }
 }
 
@@ -76,7 +64,6 @@ dependencies {
 
     implementation("androidx.navigation:navigation-compose:2.8.3")
     implementation("androidx.compose.foundation:foundation")
-
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
@@ -100,6 +87,12 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+
+    // Real GGUF inference (llama.cpp Kotlin bindings)
+    implementation("io.github.ljcamargo:llamacpp-kotlin:0.4.0")
+
+    // Model download
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
