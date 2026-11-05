@@ -12,11 +12,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -27,16 +29,33 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hassaku.plamotranslate.data.model.ModelManager
+import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    val modelManager: ModelManager
+) : ViewModel()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val modelState by viewModel.modelManager.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+
     var threads by remember { mutableFloatStateOf(4f) }
     var contextLength by remember { mutableFloatStateOf(2048f) }
     var temperature by remember { mutableFloatStateOf(0.3f) }
@@ -61,60 +80,62 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsSection(title = "モデル") {
-                SettingsInfoRow("現在のモデル", "PLaMo 3 Translate 0.8B (未ロード)")
-                SettingsInfoRow("量子化", "Q4_K_M（推奨）")
+                SettingsInfoRow("名前", modelState.info.name)
+                SettingsInfoRow("量子化", modelState.info.quant)
+                SettingsInfoRow(
+                    "状態",
+                    if (modelState.info.isDownloaded) "ダウンロード済み" else "未配置"
+                )
+                modelState.info.localPath?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                if (modelState.isDownloading) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { modelState.progress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { scope.launch { viewModel.modelManager.downloadModel() } },
+                    enabled = !modelState.isDownloading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (modelState.info.isDownloaded) "再ダウンロード" else "モデルをダウンロード")
+                }
+
+                modelState.error?.let {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "モデルはアプリ内ダウンロード、または assets に配置予定です。",
+                    "Hugging Face: pfnet/plamo-3-translate-0.8b-GGUF",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             SettingsSection(title = "推論パラメータ") {
-                SettingsSlider(
-                    label = "スレッド数",
-                    value = threads,
-                    valueRange = 1f..8f,
-                    steps = 6,
-                    display = threads.toInt().toString(),
-                    onValueChange = { threads = it }
-                )
-                SettingsSlider(
-                    label = "コンテキスト長",
-                    value = contextLength,
-                    valueRange = 512f..4096f,
-                    steps = 6,
-                    display = contextLength.toInt().toString(),
-                    onValueChange = { contextLength = it }
-                )
-                SettingsSlider(
-                    label = "Temperature",
-                    value = temperature,
-                    valueRange = 0f..1f,
-                    steps = 9,
-                    display = String.format("%.1f", temperature),
-                    onValueChange = { temperature = it }
-                )
+                SettingsSlider("スレッド数", threads, 1f..8f, 6, threads.toInt().toString()) { threads = it }
+                SettingsSlider("コンテキスト長", contextLength, 512f..4096f, 6, contextLength.toInt().toString()) { contextLength = it }
+                SettingsSlider("Temperature", temperature, 0f..1f, 9, String.format("%.1f", temperature)) { temperature = it }
             }
 
             SettingsSection(title = "その他") {
-                SettingsSwitch(
-                    label = "ストリーミング生成",
-                    checked = streaming,
-                    onCheckedChange = { streaming = it }
-                )
-                SettingsSwitch(
-                    label = "GPUオフロード（実験的）",
-                    checked = useGpu,
-                    onCheckedChange = { useGpu = it }
-                )
+                SettingsSwitch("ストリーミング生成", streaming) { streaming = it }
+                SettingsSwitch("GPUオフロード（実験的）", useGpu) { useGpu = it }
             }
 
             SettingsSection(title = "アプリ情報") {
                 SettingsInfoRow("バージョン", "0.1.0")
                 SettingsInfoRow("エンジン", "PLaMo 3 Translate")
                 Text(
-                    text = "完全オフライン・プライバシー重視の翻訳アプリです。",
+                    "完全オフライン・プライバシー重視の翻訳＆単語学習アプリ",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -124,22 +145,13 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsSection(
-    title: String,
-    content: @Composable () -> Unit
-) {
+private fun SettingsSection(title: String, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(12.dp))
             content()
         }
@@ -148,57 +160,30 @@ private fun SettingsSection(
 
 @Composable
 private fun SettingsInfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun SettingsSlider(
-    label: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    display: String,
-    onValueChange: (Float) -> Unit
+    label: String, value: Float, valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int, display: String, onValueChange: (Float) -> Unit
 ) {
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, style = MaterialTheme.typography.bodyMedium)
             Text(display, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         }
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange,
-            steps = steps
-        )
+        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
     }
 }
 
 @Composable
-private fun SettingsSwitch(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
+private fun SettingsSwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -2,6 +2,7 @@ package com.hassaku.plamotranslate.ui.translate
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hassaku.plamotranslate.data.inference.TranslationEngine
 import com.hassaku.plamotranslate.data.repository.HistoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,8 @@ data class TranslateUiState(
     val targetLang: String = "Japanese",
     val isTranslating: Boolean = false,
     val error: String? = null,
-    val style: TranslationStyle = TranslationStyle.NORMAL
+    val style: TranslationStyle = TranslationStyle.NORMAL,
+    val isModelReady: Boolean = false
 )
 
 enum class TranslationStyle(val label: String) {
@@ -29,11 +31,16 @@ enum class TranslationStyle(val label: String) {
 
 @HiltViewModel
 class TranslateViewModel @Inject constructor(
+    private val translationEngine: TranslationEngine,
     private val historyRepository: HistoryRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TranslateUiState())
     val uiState: StateFlow<TranslateUiState> = _uiState.asStateFlow()
+
+    init {
+        _uiState.update { it.copy(isModelReady = translationEngine.isModelLoaded) }
+    }
 
     fun onSourceTextChange(text: String) {
         _uiState.update { it.copy(sourceText = text, error = null) }
@@ -61,67 +68,40 @@ class TranslateViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isTranslating = true, error = null) }
 
-            try {
-                // TODO: Replace with real PLaMo inference via llama.cpp
-                val result = mockTranslate(
-                    text = state.sourceText,
-                    sourceLang = state.sourceLang,
-                    targetLang = state.targetLang,
-                    style = state.style
-                )
+            val result = translationEngine.translate(
+                text = state.sourceText,
+                sourceLang = state.sourceLang,
+                targetLang = state.targetLang,
+                style = state.style
+            )
 
-                _uiState.update {
-                    it.copy(
-                        translatedText = result,
-                        isTranslating = false
+            result.fold(
+                onSuccess = { translated ->
+                    _uiState.update {
+                        it.copy(translatedText = translated, isTranslating = false)
+                    }
+                    historyRepository.saveTranslation(
+                        sourceText = state.sourceText,
+                        translatedText = translated,
+                        sourceLang = state.sourceLang,
+                        targetLang = state.targetLang
                     )
+                },
+                onFailure = { e ->
+                    _uiState.update {
+                        it.copy(
+                            isTranslating = false,
+                            error = e.message ?: "翻訳に失敗しました"
+                        )
+                    }
                 }
-
-                // Save to history
-                historyRepository.saveTranslation(
-                    sourceText = state.sourceText,
-                    translatedText = result,
-                    sourceLang = state.sourceLang,
-                    targetLang = state.targetLang
-                )
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isTranslating = false,
-                        error = e.message ?: "翻訳に失敗しました"
-                    )
-                }
-            }
+            )
         }
     }
 
     fun clear() {
         _uiState.update {
             it.copy(sourceText = "", translatedText = "", error = null)
-        }
-    }
-
-    /**
-     * Temporary mock. Will be replaced by PLaMo GGUF inference.
-     */
-    private fun mockTranslate(
-        text: String,
-        sourceLang: String,
-        targetLang: String,
-        style: TranslationStyle
-    ): String {
-        val styleNote = when (style) {
-            TranslationStyle.POLITE -> "（敬体で翻訳予定）"
-            TranslationStyle.CASUAL -> "（常体で翻訳予定）"
-            TranslationStyle.NORMAL -> ""
-        }
-        return buildString {
-            appendLine("【デモ翻訳結果】")
-            appendLine("方向: $sourceLang → $targetLang $styleNote")
-            appendLine()
-            appendLine(text)
-            appendLine()
-            append("※ PLaMoモデル連携後に本格的な翻訳が動作します。")
         }
     }
 }
