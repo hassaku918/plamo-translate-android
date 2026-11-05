@@ -46,15 +46,16 @@ import com.hassaku.plamotranslate.ui.translate.TranslationStyle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TranslateScreen(
+    showTopBar: Boolean = true,
     viewModel: TranslateViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val clipboardManager = LocalClipboardManager.current
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("PLaMo Translate") }
-        )
+        if (showTopBar) {
+            TopAppBar(title = { Text("PLaMo Translate") })
+        }
 
         Column(
             modifier = Modifier
@@ -63,7 +64,6 @@ fun TranslateScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Language selector
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -84,10 +84,7 @@ fun TranslateScreen(
                 )
             }
 
-            // Style chips (常体 / 敬体)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TranslationStyle.entries.forEach { style ->
                     FilterChip(
                         selected = uiState.style == style,
@@ -97,7 +94,6 @@ fun TranslateScreen(
                 }
             }
 
-            // Source input
             OutlinedTextField(
                 value = uiState.sourceText,
                 onValueChange = viewModel::onSourceTextChange,
@@ -133,7 +129,6 @@ fun TranslateScreen(
                 }
             }
 
-            // Error
             uiState.error?.let { error ->
                 Text(
                     text = error,
@@ -142,7 +137,6 @@ fun TranslateScreen(
                 )
             }
 
-            // Result
             if (uiState.translatedText.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),

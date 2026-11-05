@@ -50,14 +50,15 @@ import com.hassaku.plamotranslate.ui.word.WordViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WordScreen(
+    showTopBar: Boolean = true,
     viewModel: WordViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("単語モード") }
-        )
+        if (showTopBar) {
+            TopAppBar(title = { Text("単語モード") })
+        }
 
         Column(
             modifier = Modifier
@@ -71,9 +72,7 @@ fun WordScreen(
                 onValueChange = viewModel::onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text(stringResource(R.string.word_hint)) },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null)
-                },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (uiState.query.isNotEmpty()) {
                         IconButton(onClick = viewModel::clear) {
@@ -88,19 +87,15 @@ fun WordScreen(
             when {
                 uiState.isLoading -> {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
                         contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    ) { CircularProgressIndicator() }
                 }
 
                 uiState.result != null -> {
                     WordResultCard(entry = uiState.result!!)
                     Text(
-                        text = "※ 現在はデモ辞書です。今後オフライン辞書に置き換えます。\n試せる単語: connoisseur / gut / resilient",
+                        text = "※ デモ辞書です。試せる単語: connoisseur / gut / resilient",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -108,13 +103,11 @@ fun WordScreen(
 
                 uiState.notFound -> {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "「${uiState.query}」は見つかりませんでした\n（デモ辞書には connoisseur / gut / resilient があります）",
+                            text = "「${uiState.query}」は見つかりませんでした\n（connoisseur / gut / resilient が使えます）",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -123,9 +116,7 @@ fun WordScreen(
 
                 else -> {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 48.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -148,81 +139,46 @@ private fun WordResultCard(entry: WordEntry) {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            // Word + phonetic
-            Text(
-                text = entry.word,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Text(entry.word, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             entry.phonetic?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
-            // CEFR + POS badges
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                entry.cefr?.let { CefrBadge(level = it) }
-                entry.partOfSpeech?.let { PosBadge(pos = it) }
-                entry.jlpt?.let { PosBadge(pos = "JLPT $it") }
+                entry.cefr?.let { CefrBadge(it) }
+                entry.partOfSpeech?.let { PosBadge(it) }
             }
-
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Main meaning
-            Text(
-                text = "意味：${entry.mainMeaningJa}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text("意味：${entry.mainMeaningJa}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             entry.explanationJa?.let {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = it, style = MaterialTheme.typography.bodyLarge)
+                Text(it, style = MaterialTheme.typography.bodyLarge)
             }
-
-            // Usages
             if (entry.usages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(20.dp))
                 SectionTitle("1. 典型的な用法")
-                entry.usages.forEach { usage ->
-                    UsageItem(usage.expression, usage.meaningJa)
-                }
+                entry.usages.forEach { UsageItem(it.expression, it.meaningJa) }
             }
-
-            // Example sentences
             if (entry.exampleSentences.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 SectionTitle("2. 例文")
-                entry.exampleSentences.forEach { ex ->
-                    ExampleItem(ex.english, ex.japanese)
-                }
+                entry.exampleSentences.forEach { ExampleItem(it.english, it.japanese) }
             }
-
-            // Synonyms
             if (entry.synonyms.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 SectionTitle("3. 類義語との違い")
-                entry.synonyms.forEach { syn ->
-                    SynonymRow(syn.word, syn.nuanceJa, syn.isHighlight)
-                }
+                entry.synonyms.forEach { SynonymRow(it.word, it.nuanceJa, it.isHighlight) }
             }
-
-            // Usage notes
-            entry.usageNotes?.let { notes ->
+            entry.usageNotes?.let {
                 Spacer(modifier = Modifier.height(16.dp))
                 SectionTitle("4. 語法上のポイント")
-                Text(text = notes, style = MaterialTheme.typography.bodyMedium)
+                Text(it, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
 }
 
-@Composable
-private fun CefrBadge(level: String) {
+@Composable private fun CefrBadge(level: String) {
     val color = when {
         level.contains("A1") -> CefrA1
         level.contains("A2") -> CefrA2
@@ -232,50 +188,23 @@ private fun CefrBadge(level: String) {
         level.contains("C2") -> CefrC2
         else -> MaterialTheme.colorScheme.primary
     }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = level,
-            style = MaterialTheme.typography.labelLarge,
-            color = color,
-            fontWeight = FontWeight.Bold
-        )
+    Box(Modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.15f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+        Text(level, style = MaterialTheme.typography.labelLarge, color = color, fontWeight = FontWeight.Bold)
     }
 }
 
-@Composable
-private fun PosBadge(pos: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = pos,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
-        )
+@Composable private fun PosBadge(pos: String) {
+    Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = 10.dp, vertical = 4.dp)) {
+        Text(pos, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }
 
-@Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary
-    )
+@Composable private fun SectionTitle(text: String) {
+    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
     Spacer(modifier = Modifier.height(8.dp))
 }
 
-@Composable
-private fun UsageItem(en: String, ja: String) {
+@Composable private fun UsageItem(en: String, ja: String) {
     Row(modifier = Modifier.padding(vertical = 2.dp)) {
         Text("• ", style = MaterialTheme.typography.bodyMedium)
         Column {
@@ -285,34 +214,16 @@ private fun UsageItem(en: String, ja: String) {
     }
 }
 
-@Composable
-private fun ExampleItem(en: String, ja: String) {
+@Composable private fun ExampleItem(en: String, ja: String) {
     Column(modifier = Modifier.padding(vertical = 6.dp)) {
         Text(en, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         Text(ja, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-@Composable
-private fun SynonymRow(word: String, nuance: String, highlight: Boolean = false) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = word,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
-            color = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.width(110.dp)
-        )
-        Text(
-            text = nuance,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f)
-        )
+@Composable private fun SynonymRow(word: String, nuance: String, highlight: Boolean = false) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(word, style = MaterialTheme.typography.bodyMedium, fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal, color = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, modifier = Modifier.width(110.dp))
+        Text(nuance, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
     }
 }
