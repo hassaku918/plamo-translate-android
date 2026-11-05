@@ -1,102 +1,89 @@
 # PLaMo Translate Android
 
-**完全オフライン**で動く高品質翻訳＋単語学習アプリ。  
-Preferred Networks の **PLaMo 3 Translate 0.8B** をオンデバイスで動かすことを目指した実装です。
+**完全オフライン**の翻訳＋単語学習アプリ。  
+Preferred Networks **PLaMo 3 Translate 0.8B** のオンデバイス利用を目指した実装です。
 
-## 現在の完成度（2026-11-05）
+## リポジトリ
+https://github.com/hassaku918/plamo-translate-android
 
-### 実装済み ✅
+## 完成している機能
 
 | 機能 | 状態 |
 |------|------|
-| HorizontalPager スワイプ切り替え（Grok風） | ✅ |
-| ボトムナビ連動 | ✅ |
-| 翻訳画面 + 常体/敬体スタイル | ✅ |
-| 単語モード（ChatGPT風リッチ辞書UI） | ✅ |
-| デモ辞書（connoisseur / gut / resilient） | ✅ |
-| CEFRバッジ・多義・例文・類義語比較 | ✅ |
-| 履歴（翻訳・単語）+ お気に入り | ✅ |
-| 設定画面（モデル・推論パラメータ） | ✅ |
-| モデル管理スケルトン | ✅ |
-| 推論エンジン抽象化（TranslationEngine） | ✅ |
+| Grok風スワイプ（翻訳 ⇄ 単語 ⇄ カメラ） | ✅ |
+| ボトムナビ + TopBar（履歴・設定） | ✅ |
+| 翻訳（常体/敬体）+ 履歴保存 | ✅ |
+| 単語モード（CEFR・多義・例文・類義語） | ✅ |
+| デモ辞書 8語 | ✅ |
+| 履歴・お気に入り（Room） | ✅ |
+| 設定・モデル管理UI | ✅ |
+| TranslationEngine 抽象化 | ✅ |
 | PLaMo公式プロンプトビルダー | ✅ |
-| Camera権限 + OCR画面骨格 | ✅ |
-| Room + Hilt + Cleanっぽい構成 | ✅ |
-| GitHub Actions APKビルドワークフロー | ✅ |
+| llama.cpp JNI 骨格（CMake + stub） | ✅ |
+| ML Kit テキスト認識ヘルパー | ✅ |
+| Camera権限・選択UI | ✅ |
+| GitHub Actions APK workflow | ✅ |
 
-### これから（ネイティブ連携）
+## 単語モードで試せる語
 
-| 機能 | 状態 |
-|------|------|
-| llama.cpp JNI / GGUF読み込み | 🔲 |
-| 本格オフライン辞書（SQLiteバンドル） | 🔲 |
-| CameraX Preview + ML Kit リアルタイムOCR | 🔲 |
-| バウンディングボックス選択UI | 🔲 |
-| 実モデルダウンロード | 🔲 |
+`connoisseur` / `gut` / `resilient` / `ephemeral` / `pragmatic` / `ambiguous` / `meticulous` / `ubiquitous`
 
-## 使い方
+## ビルド手順
 
 ```bash
 git clone https://github.com/hassaku918/plamo-translate-android.git
+cd plamo-translate-android
 ```
 
-1. Android Studio で開く
-2. Gradle Sync
-3. 実機 or エミュレータで Run
+1. Android Studio (Ladybug+) で開く
+2. NDK / CMake が入っていることを確認
+3. Gradle Sync → Run
 
-### 単語モードで試せる単語
-- `connoisseur`
-- `gut`
-- `resilient`
+初回は Gradle Wrapper が無い場合:
+```bash
+gradle wrapper --gradle-version 8.9
+./gradlew assembleDebug
+```
 
-### 操作
-- **左右スワイプ** … 翻訳 ⇄ 単語 ⇄ カメラ
-- **右上の履歴アイコン** … 翻訳・単語履歴
-- **右上の歯車** … 設定・モデル管理
+## 残作業（実機で本格動作させるために）
 
-## アーキテクチャ概要
+### 1. llama.cpp 統合
+```bash
+cd app/src/main/cpp
+git clone https://github.com/ggerganov/llama.cpp
+# CMakeLists.txt のコメントを外して llama をリンク
+# plamo_jni.cpp を実API呼び出しに書き換え
+```
+
+モデル: [pfnet/plamo-3-translate-0.8b-GGUF](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF) の Q4_K_M  
+配置先: アプリ内部 `files/models/` または assets
+
+### 2. CameraX Preview
+`CameraScreen` に `AndroidView(PreviewView)` を埋め込み、  
+`ImageAnalysis` → `TextRecognitionHelper.recognize()` でブロック更新。
+
+### 3. 本格辞書
+`DemoDictionary` を SQLite / Room のバンドルDBに置き換え。  
+CEFR付き英単語リストを assets に同梱。
+
+## アーキテクチャ
 
 ```
-ui/
-  navigation/   HorizontalPager + Overlay (History/Settings)
-  screens/      Translate / Word / Camera / History / Settings
-  translate/    TranslateViewModel
-  word/         WordViewModel
-  camera/       CameraViewModel
-  history/      HistoryViewModel
+ui/          Compose画面 + ViewModel
 data/
-  inference/    TranslationEngine + Mock + PlamoPromptBuilder
-  dictionary/   DemoDictionary
-  local/        Room DB + DAO
-  repository/   HistoryRepository
-  model/        ModelManager, WordEntry, etc.
-di/             Hilt modules
+  inference/ TranslationEngine, Mock, LlamaCpp, PromptBuilder
+  dictionary/ DemoDictionary
+  ocr/       TextRecognitionHelper (ML Kit)
+  local/     Room
+  repository/
+cpp/         JNI + CMake（llama.cpp 接続点）
 ```
-
-## PLaMo モデルについて
-
-推奨: [pfnet/plamo-3-translate-0.8b-GGUF](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF) の **Q4_K_M**
-
-プロンプト形式:
-```
-<|plamo:op|>dataset
-translation
-<|plamo:op|>input lang=English
-[原文]
-<|plamo:op|>output lang=Japanese
-```
-
-## ビルド（GitHub Actions）
-
-`main` への push で Debug APK を自動ビルドし、Artifacts にアップロードします。  
-（Gradle Wrapper の jar が無い場合はローカルで `gradle wrapper` を実行してください）
 
 ## ライセンス
 
 - アプリコード: MIT（予定）
-- PLaMo 3 Translate モデル: [PLaMo Community License](https://plamo.preferredai.jp/info/plamo-community-license-ja)
+- PLaMo: [PLaMo Community License](https://plamo.preferredai.jp/info/plamo-community-license-ja)
 
 ---
-
-Made for offline-first, privacy-respecting translation & vocabulary learning.  
-Powered by PLaMo 3 Translate from Preferred Networks.
+Offline-first translation & vocabulary learning.  
+Powered by PLaMo 3 Translate (Preferred Networks).

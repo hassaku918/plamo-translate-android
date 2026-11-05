@@ -5,6 +5,6 @@
     <string name="tab_word">単語</string>
     <string name="tab_camera">カメラ</string>
     <string name="translate_hint">翻訳したいテキストを入力…</string>
-    <string name="word_hint">調べたい単語を入力…</string>
+    <string name="word_hint">調べたい単語を入力… (connoisseur, gut, resilient…)</string>
     <string name="camera_permission_required">カメラの権限が必要です</string>
 </resources>
