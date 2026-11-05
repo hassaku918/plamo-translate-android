@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -32,20 +33,45 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.Modifier.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import com.hassaku.plamotranslate.data.inference.PlamoLlamaEngine
+import com.hassaku.plamotranslate.data.inference.TranslationEngine
 import com.hassaku.plamotranslate.data.model.ModelManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    val modelManager: ModelManager
-) : ViewModel()
+    val modelManager: ModelManager,
+    val translationEngine: TranslationEngine,
+    private val plamoEngine: PlamoLlamaEngine
+) : ViewModel() {
+    fun loadModel(onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val path = modelManager.getModelPath()
+            if (path == null) {
+                onDone("モデルファイルがありません。先にダウンロードしてください。")
+                return@launch
+            }
+            val result = translationEngine.loadModel(path)
+            modelManager.markLoaded(result.isSuccess)
+            onDone(
+                result.fold(
+                    onSuccess = { "モデルをロードしました" },
+                    onFailure = { it.message ?: "ロード失敗" }
+                )
+            )
+        }
+    }
+
+    fun libraryOk(): Boolean = plamoEngine.isLibraryAvailable()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +81,7 @@ fun SettingsScreen(
 ) {
     val modelState by viewModel.modelManager.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    var statusMessage by remember { mutableStateOf<String?>(null) }
 
     var threads by remember { mutableFloatStateOf(4f) }
     var contextLength by remember { mutableFloatStateOf(2048f) }
@@ -79,12 +106,20 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            SettingsSection(title = "モデル") {
+            SettingsSection(title = "モデル（本推論）") {
                 SettingsInfoRow("名前", modelState.info.name)
                 SettingsInfoRow("量子化", modelState.info.quant)
                 SettingsInfoRow(
-                    "状態",
-                    if (modelState.info.isDownloaded) "ダウンロード済み" else "未配置"
+                    "ファイル",
+                    if (modelState.info.isDownloaded) "配置済み" else "未配置"
+                )
+                SettingsInfoRow(
+                    "推論エンジン",
+                    if (viewModel.libraryOk()) "llama.cpp (kotlinllamacpp)" else "ライブラリ未検出"
+                )
+                SettingsInfoRow(
+                    "ロード状態",
+                    if (modelState.isLoaded || viewModel.translationEngine.isModelLoaded) "ロード済み" else "未ロード"
                 )
                 modelState.info.localPath?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -96,31 +131,60 @@ fun SettingsScreen(
                         progress = { modelState.progress },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Text(
+                        "${(modelState.progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
-                    onClick = { scope.launch { viewModel.modelManager.downloadModel() } },
+                    onClick = {
+                        scope.launch {
+                            statusMessage = "ダウンロード中…"
+                            viewModel.modelManager.downloadModel()
+                                .onSuccess { statusMessage = "ダウンロード完了" }
+                                .onFailure { statusMessage = it.message }
+                        }
+                    },
                     enabled = !modelState.isDownloading,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (modelState.info.isDownloaded) "再ダウンロード" else "モデルをダウンロード")
+                    Text(if (modelState.info.isDownloaded) "再ダウンロード" else "GGUFをダウンロード")
                 }
 
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        statusMessage = "ロード中…"
+                        viewModel.loadModel { statusMessage = it }
+                    },
+                    enabled = modelState.info.isDownloaded && !modelState.isDownloading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("モデルをロード（本推論開始）")
+                }
+
+                statusMessage?.let {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
                 modelState.error?.let {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Hugging Face: pfnet/plamo-3-translate-0.8b-GGUF",
+                    "手動配置: Hugging Face の GGUF を端末の\n" +
+                        "Android/data/.../files/models/ またはアプリ内部 models/ に置いても可\n" +
+                        modelState.info.huggingFacePage,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            SettingsSection(title = "推論パラメータ") {
+            SettingsSection(title = "推論パラメータ（参考）") {
                 SettingsSlider("スレッド数", threads, 1f..8f, 6, threads.toInt().toString()) { threads = it }
                 SettingsSlider("コンテキスト長", contextLength, 512f..4096f, 6, contextLength.toInt().toString()) { contextLength = it }
                 SettingsSlider("Temperature", temperature, 0f..1f, 9, String.format("%.1f", temperature)) { temperature = it }
@@ -132,13 +196,8 @@ fun SettingsScreen(
             }
 
             SettingsSection(title = "アプリ情報") {
-                SettingsInfoRow("バージョン", "0.1.0")
-                SettingsInfoRow("エンジン", "PLaMo 3 Translate")
-                Text(
-                    "完全オフライン・プライバシー重視の翻訳＆単語学習アプリ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                SettingsInfoRow("バージョン", "0.2.0")
+                SettingsInfoRow("エンジン", "PLaMo 3 Translate + llama.cpp")
             }
         }
     }

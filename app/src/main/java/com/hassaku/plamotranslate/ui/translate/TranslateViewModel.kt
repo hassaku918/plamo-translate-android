@@ -3,6 +3,7 @@ package com.hassaku.plamotranslate.ui.translate
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hassaku.plamotranslate.data.inference.TranslationEngine
+import com.hassaku.plamotranslate.data.model.ModelManager
 import com.hassaku.plamotranslate.data.repository.HistoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,8 @@ data class TranslateUiState(
     val isTranslating: Boolean = false,
     val error: String? = null,
     val style: TranslationStyle = TranslationStyle.NORMAL,
-    val isModelReady: Boolean = false
+    val isModelReady: Boolean = false,
+    val statusHint: String = "設定からモデルをダウンロード＆ロードしてください"
 )
 
 enum class TranslationStyle(val label: String) {
@@ -32,14 +34,47 @@ enum class TranslationStyle(val label: String) {
 @HiltViewModel
 class TranslateViewModel @Inject constructor(
     private val translationEngine: TranslationEngine,
-    private val historyRepository: HistoryRepository
+    private val historyRepository: HistoryRepository,
+    private val modelManager: ModelManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TranslateUiState())
     val uiState: StateFlow<TranslateUiState> = _uiState.asStateFlow()
 
     init {
-        _uiState.update { it.copy(isModelReady = translationEngine.isModelLoaded) }
+        viewModelScope.launch {
+            modelManager.refreshStatus()
+            val path = modelManager.getModelPath()
+            if (path != null && !translationEngine.isModelLoaded) {
+                _uiState.update { it.copy(statusHint = "モデルをロード中…") }
+                val result = translationEngine.loadModel(path)
+                modelManager.markLoaded(result.isSuccess)
+                _uiState.update {
+                    it.copy(
+                        isModelReady = result.isSuccess,
+                        statusHint = if (result.isSuccess) {
+                            "本推論準備完了（PLaMo GGUF）"
+                        } else {
+                            result.exceptionOrNull()?.message
+                                ?: "ロード失敗。設定から再試行してください"
+                        }
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isModelReady = translationEngine.isModelLoaded,
+                        statusHint = if (translationEngine.isModelLoaded) {
+                            "本推論準備完了"
+                        } else if (path != null) {
+                            "モデルはあります。設定からロードしてください"
+                        } else {
+                            "設定 → GGUFダウンロード → ロード"
+                        }
+                    )
+                }
+            }
+        }
     }
 
     fun onSourceTextChange(text: String) {
@@ -66,6 +101,12 @@ class TranslateViewModel @Inject constructor(
         if (state.sourceText.isBlank()) return
 
         viewModelScope.launch {
+            if (!translationEngine.isModelLoaded) {
+                val path = modelManager.getModelPath()
+                if (path != null) {
+                    translationEngine.loadModel(path)
+                }
+            }
             _uiState.update { it.copy(isTranslating = true, error = null) }
 
             val result = translationEngine.translate(
@@ -78,7 +119,11 @@ class TranslateViewModel @Inject constructor(
             result.fold(
                 onSuccess = { translated ->
                     _uiState.update {
-                        it.copy(translatedText = translated, isTranslating = false)
+                        it.copy(
+                            translatedText = translated,
+                            isTranslating = false,
+                            isModelReady = true
+                        )
                     }
                     historyRepository.saveTranslation(
                         sourceText = state.sourceText,
