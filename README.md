@@ -1,36 +1,48 @@
 # PLaMo Translate Android
 
-**完全オフライン**で動く高品質翻訳アプリ。Preferred Networksの **PLaMo 3 Translate 0.8B** をオンデバイスで動作させ、Google Lens風のカメラテキスト選択にも対応。
+**完全オフライン**で動く高品質翻訳＋単語学習アプリ。  
+Preferred Networks の **PLaMo 3 Translate 0.8B** をオンデバイスで動かすことを目指した実装です。
 
-## 現在の進捗（2026-11-05）
+## 現在の完成度（2026-11-05）
 
 ### 実装済み ✅
-- [x] プロジェクト骨格（Gradle + Compose + Hilt + Room）
-- [x] **HorizontalPager スワイプ切り替え**（翻訳 ⇄ 単語 ⇄ カメラ）
-- [x] ボトムナビゲーション連動
-- [x] 翻訳画面 + TranslateViewModel（常体/敬体スタイル選択付き）
-- [x] **単語モード**（ChatGPT風リッチ辞書UI + ViewModel）
-- [x] デモ辞書（connoisseur / gut / resilient）
-- [x] **履歴機能**（翻訳履歴・単語履歴・お気に入り）
-- [x] Room DB + Repository 層
-- [x] DI（Hilt）
-- [x] Adaptive Icon
 
-### これから
-- [ ] PLaMo (llama.cpp) 推論連携
-- [ ] 本格オフライン辞書（SQLiteバンドル）
-- [ ] CameraX + ML Kit OCR 実装
-- [ ] 履歴画面への導線（TopBarメニュー等）
-- [ ] モデルダウンロード管理
-- [ ] GitHub Actions でAPK自動ビルド
+| 機能 | 状態 |
+|------|------|
+| HorizontalPager スワイプ切り替え（Grok風） | ✅ |
+| ボトムナビ連動 | ✅ |
+| 翻訳画面 + 常体/敬体スタイル | ✅ |
+| 単語モード（ChatGPT風リッチ辞書UI） | ✅ |
+| デモ辞書（connoisseur / gut / resilient） | ✅ |
+| CEFRバッジ・多義・例文・類義語比較 | ✅ |
+| 履歴（翻訳・単語）+ お気に入り | ✅ |
+| 設定画面（モデル・推論パラメータ） | ✅ |
+| モデル管理スケルトン | ✅ |
+| 推論エンジン抽象化（TranslationEngine） | ✅ |
+| PLaMo公式プロンプトビルダー | ✅ |
+| Camera権限 + OCR画面骨格 | ✅ |
+| Room + Hilt + Cleanっぽい構成 | ✅ |
+| GitHub Actions APKビルドワークフロー | ✅ |
 
-## 試し方
+### これから（ネイティブ連携）
+
+| 機能 | 状態 |
+|------|------|
+| llama.cpp JNI / GGUF読み込み | 🔲 |
+| 本格オフライン辞書（SQLiteバンドル） | 🔲 |
+| CameraX Preview + ML Kit リアルタイムOCR | 🔲 |
+| バウンディングボックス選択UI | 🔲 |
+| 実モデルダウンロード | 🔲 |
+
+## 使い方
 
 ```bash
 git clone https://github.com/hassaku918/plamo-translate-android.git
 ```
 
-Android Studioで開いて Run。
+1. Android Studio で開く
+2. Gradle Sync
+3. 実機 or エミュレータで Run
 
 ### 単語モードで試せる単語
 - `connoisseur`
@@ -38,27 +50,53 @@ Android Studioで開いて Run。
 - `resilient`
 
 ### 操作
-- **左右スワイプ** で画面切り替え（Grok風）
-- 下部ナビをタップしても移動可能
-- 翻訳すると履歴に自動保存
-- 単語を調べると単語履歴に自動保存
+- **左右スワイプ** … 翻訳 ⇄ 単語 ⇄ カメラ
+- **右上の履歴アイコン** … 翻訳・単語履歴
+- **右上の歯車** … 設定・モデル管理
 
-## 技術スタック
+## アーキテクチャ概要
 
-| レイヤー | 技術 |
-|---------|------|
-| UI | Jetpack Compose + Material 3 |
-| スワイプ | HorizontalPager |
-| DI | Hilt |
-| DB | Room |
-| OCR予定 | CameraX + ML Kit |
-| 推論予定 | llama.cpp (GGUF) |
+```
+ui/
+  navigation/   HorizontalPager + Overlay (History/Settings)
+  screens/      Translate / Word / Camera / History / Settings
+  translate/    TranslateViewModel
+  word/         WordViewModel
+  camera/       CameraViewModel
+  history/      HistoryViewModel
+data/
+  inference/    TranslationEngine + Mock + PlamoPromptBuilder
+  dictionary/   DemoDictionary
+  local/        Room DB + DAO
+  repository/   HistoryRepository
+  model/        ModelManager, WordEntry, etc.
+di/             Hilt modules
+```
+
+## PLaMo モデルについて
+
+推奨: [pfnet/plamo-3-translate-0.8b-GGUF](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF) の **Q4_K_M**
+
+プロンプト形式:
+```
+<|plamo:op|>dataset
+translation
+<|plamo:op|>input lang=English
+[原文]
+<|plamo:op|>output lang=Japanese
+```
+
+## ビルド（GitHub Actions）
+
+`main` への push で Debug APK を自動ビルドし、Artifacts にアップロードします。  
+（Gradle Wrapper の jar が無い場合はローカルで `gradle wrapper` を実行してください）
 
 ## ライセンス
 
 - アプリコード: MIT（予定）
-- PLaMo 3 Translate: PLaMo Community License
+- PLaMo 3 Translate モデル: [PLaMo Community License](https://plamo.preferredai.jp/info/plamo-community-license-ja)
 
 ---
 
-Made for offline-first, privacy-respecting translation & vocabulary learning.
+Made for offline-first, privacy-respecting translation & vocabulary learning.  
+Powered by PLaMo 3 Translate from Preferred Networks.
