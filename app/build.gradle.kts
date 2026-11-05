@@ -25,27 +25,15 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
-
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17 -O3"
-                arguments += listOf(
-                    "-DANDROID_STL=c++_shared"
-                )
-            }
-        }
     }
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
+    // Native build is optional until llama.cpp is fully integrated.
+    // Enable locally when NDK/CMake are installed:
+    // externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

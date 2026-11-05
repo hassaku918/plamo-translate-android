@@ -3,8 +3,6 @@ name: Build APK
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -21,41 +19,38 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK and CMake
-        run: |
-          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Create Gradle Wrapper if missing
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "Android SDK: $ANDROID_HOME"
+          ls "$ANDROID_HOME" || true
+
+      - name: Create Gradle Wrapper
         run: |
           if [ ! -f gradlew ]; then
             gradle wrapper --gradle-version 8.9
           fi
           chmod +x gradlew
 
-      - name: Build Debug APK
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.1.10909125
+      - name: Build Debug APK (skip native if NDK missing)
         run: |
-          ./gradlew assembleDebug --stacktrace -PreactNativeArchitectures=
+          ./gradlew assembleDebug --stacktrace -x externalNativeBuildDebug -x externalNativeBuildCleanDebug || \
+          ./gradlew assembleDebug --stacktrace
 
-      - name: Find APK
-        id: find_apk
+      - name: List outputs
+        if: always()
         run: |
-          APK=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
-          echo "apk_path=$APK" >> $GITHUB_OUTPUT
-          ls -la app/build/outputs/apk/debug/ || true
+          find app/build/outputs -type f -name "*.apk" -o -name "*.aab" 2>/dev/null || true
+          ls -laR app/build/outputs/apk 2>/dev/null || true
 
       - name: Upload APK artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: plamo-translate-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
-          retention-days: 14
+          path: |
+            app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
