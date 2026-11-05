@@ -23,6 +23,14 @@
   <|plamo:op|>output lang=Japanese
   ```
 
+### 単語モード（オフライン辞書連携）★NEW
+- **単一単語検出**: 入力が単語（または短いフレーズ）の場合に自動切替
+- **多義（複数の意味）表示**: オフライン辞書から複数の語義・品詞・例文を表示
+- **CEFRレベル表示**: その単語のCEFRレベル（A1〜C2）をバッジで表示
+- 完全オフライン（バンドルしたSQLite辞書を使用）
+- 対応予定: 英語中心 + 日本語（JLPTとの対応も検討）
+- 高頻度語を優先してコンパクトに収録（アプリサイズを抑えつつ実用性を確保）
+
 ### カメラOCR（Lens風）
 - CameraX + ML Kit Text Recognition v2
 - リアルタイムテキスト検出オーバーレイ
@@ -50,6 +58,7 @@
 | 非同期 | Kotlin Coroutines + Flow |
 | 推論 | llama.cpp (GGUF) via JNI / kotlinllamacpp |
 | OCR | ML Kit Text Recognition + CameraX |
+| 辞書 | Room + バンドルSQLite（多義・CEFR） |
 | 永続化 | Room + DataStore Preferences |
 | DI | Hilt (推奨) |
 
@@ -87,13 +96,17 @@ Hugging Faceから以下をダウンロードしてください：
   - 個人利用・非商用は基本無料
   - 年商10億円以下の企業も条件付き無料
   - 商用で大規模利用の場合はPFNに要相談
+- 辞書データ: 使用するオープンデータ（English Vocabulary Profile等）のライセンスに従う
 
 ## ロードマップ
 
 - [x] リポジトリ作成
+- [x] 単語モード（多義表示 + CEFRレベル）仕様追加
 - [ ] 基本プロジェクト構造 + Compose UI骨格
 - [ ] llama.cpp統合 + PLaMoプロンプト実装
 - [ ] テキスト翻訳画面完成
+- [ ] 単語モードUI（多義カード + CEFRバッジ）
+- [ ] オフライン辞書データ準備・バンドル
 - [ ] CameraX + ML Kit OCR + テキスト選択UI
 - [ ] モデルダウンロードマネージャ
 - [ ] 履歴・お気に入り
@@ -103,7 +116,7 @@ Hugging Faceから以下をダウンロードしてください：
 
 ## 貢献
 
-Issue / PR歓迎です。特にllama.cppのAndroid最適化やOCRの選択UI改善を歓迎します。
+Issue / PR歓迎です。特にllama.cppのAndroid最適化やOCRの選択UI改善、辞書データの拡充を歓迎します。
 
 ---
 
