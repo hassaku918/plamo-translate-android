@@ -15,49 +15,44 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hassaku.plamotranslate.R
+import com.hassaku.plamotranslate.data.model.WordEntry
 import com.hassaku.plamotranslate.ui.theme.CefrA1
 import com.hassaku.plamotranslate.ui.theme.CefrA2
 import com.hassaku.plamotranslate.ui.theme.CefrB1
 import com.hassaku.plamotranslate.ui.theme.CefrB2
 import com.hassaku.plamotranslate.ui.theme.CefrC1
 import com.hassaku.plamotranslate.ui.theme.CefrC2
+import com.hassaku.plamotranslate.ui.word.WordViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WordScreen() {
-    var query by remember { mutableStateOf("") }
-    var showResult by remember { mutableStateOf(false) }
-
-    // Demo data for "connoisseur" (matching the ChatGPT share style)
-    val demoWord = "connoisseur"
-    val demoPhonetic = "/ˌkɒnəˈsɜː(r)/"
-    val demoCefr = "C1–C2"
-    val demoPos = "名詞"
-    val demoMeaning = "目利き、鑑定家、通（つう）、愛好家"
-    val demoExplanation =
-        "ある分野について豊富な知識と経験を持ち、その価値や品質を的確に判断できる人。単なる fan（ファン・愛好家）よりも、専門的な知識や洗練された審美眼を備えているというニュアンスが強い。"
+fun WordScreen(
+    viewModel: WordViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -72,130 +67,155 @@ fun WordScreen() {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             OutlinedTextField(
-                value = query,
-                onValueChange = {
-                    query = it
-                    showResult = it.isNotBlank()
-                },
+                value = uiState.query,
+                onValueChange = viewModel::onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text(stringResource(R.string.word_hint)) },
                 leadingIcon = {
                     Icon(Icons.Default.Search, contentDescription = null)
                 },
+                trailingIcon = {
+                    if (uiState.query.isNotEmpty()) {
+                        IconButton(onClick = viewModel::clear) {
+                            Icon(Icons.Default.Clear, contentDescription = "クリア")
+                        }
+                    }
+                },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp)
             )
 
-            if (showResult) {
-                // Main word card (ChatGPT-style rich layout)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        // Word + phonetic
+            when {
+                uiState.isLoading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                uiState.result != null -> {
+                    WordResultCard(entry = uiState.result!!)
+                    Text(
+                        text = "※ 現在はデモ辞書です。今後オフライン辞書に置き換えます。\n試せる単語: connoisseur / gut / resilient",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                uiState.notFound -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            text = if (query.equals(demoWord, ignoreCase = true)) demoWord else query,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = demoPhonetic,
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "「${uiState.query}」は見つかりませんでした\n（デモ辞書には connoisseur / gut / resilient があります）",
+                            style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // CEFR + POS badges
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            CefrBadge(level = demoCefr)
-                            PosBadge(pos = demoPos)
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Main meaning
-                        Text(
-                            text = "意味：$demoMeaning",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = demoExplanation,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Typical usages
-                        SectionTitle("1. 典型的な用法")
-                        UsageItem("a connoisseur of art", "美術の目利き")
-                        UsageItem("a wine connoisseur", "ワイン通")
-                        UsageItem("a connoisseur of fine dining", "高級料理に精通した人")
-                        UsageItem("a connoisseur of classical music", "クラシック音楽の鑑賞眼を持つ人")
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Example sentences
-                        SectionTitle("2. 例文")
-                        ExampleItem(
-                            en = "He is a connoisseur of Japanese pottery.",
-                            ja = "彼は日本の陶磁器の目利きだ。"
-                        )
-                        ExampleItem(
-                            en = "You don't have to be a connoisseur to appreciate this painting.",
-                            ja = "この絵画を鑑賞するのに、専門的な知識が必要なわけではない。"
-                        )
-                        ExampleItem(
-                            en = "The restaurant attracts connoisseurs from around the world.",
-                            ja = "そのレストランには世界中から食通が集まる。"
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Synonym comparison
-                        SectionTitle("3. 類義語との違い")
-                        SynonymRow("enthusiast", "熱心な愛好家")
-                        SynonymRow("aficionado", "熱狂的な愛好家・通")
-                        SynonymRow("expert", "専門家・熟練者")
-                        SynonymRow("connoisseur", "審美眼・鑑識眼を備えた目利き", highlight = true)
-                        SynonymRow("critic", "批評家・評論家")
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Usage notes
-                        SectionTitle("4. 語法上のポイント")
-                        Text(
-                            text = "• 可算名詞：a connoisseur / connoisseurs\n" +
-                                    "• connoisseur of A が基本形\n" +
-                                    "• 人の知識だけでなく、洗練された趣味や判断力を含意する\n\n" +
-                                    "覚えておきたい表現：a connoisseur of ...（〜の目利き・通）",
-                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
 
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "単語を入力すると\n多義・CEFRレベル・例文などが表示されます\n\n試せる単語: connoisseur / gut / resilient",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WordResultCard(entry: WordEntry) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            // Word + phonetic
+            Text(
+                text = entry.word,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            entry.phonetic?.let {
                 Text(
-                    text = "※ 現在はデモ表示です。オフライン辞書連携後に任意の単語で動作します。",
+                    text = it,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 48.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "単語を入力すると\n多義・CEFRレベル・例文などが表示されます",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // CEFR + POS badges
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                entry.cefr?.let { CefrBadge(level = it) }
+                entry.partOfSpeech?.let { PosBadge(pos = it) }
+                entry.jlpt?.let { PosBadge(pos = "JLPT $it") }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Main meaning
+            Text(
+                text = "意味：${entry.mainMeaningJa}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            entry.explanationJa?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = it, style = MaterialTheme.typography.bodyLarge)
+            }
+
+            // Usages
+            if (entry.usages.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(20.dp))
+                SectionTitle("1. 典型的な用法")
+                entry.usages.forEach { usage ->
+                    UsageItem(usage.expression, usage.meaningJa)
                 }
+            }
+
+            // Example sentences
+            if (entry.exampleSentences.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                SectionTitle("2. 例文")
+                entry.exampleSentences.forEach { ex ->
+                    ExampleItem(ex.english, ex.japanese)
+                }
+            }
+
+            // Synonyms
+            if (entry.synonyms.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                SectionTitle("3. 類義語との違い")
+                entry.synonyms.forEach { syn ->
+                    SynonymRow(syn.word, syn.nuanceJa, syn.isHighlight)
+                }
+            }
+
+            // Usage notes
+            entry.usageNotes?.let { notes ->
+                Spacer(modifier = Modifier.height(16.dp))
+                SectionTitle("4. 語法上のポイント")
+                Text(text = notes, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
